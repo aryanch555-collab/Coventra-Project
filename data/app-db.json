@@ -1,0 +1,51 @@
+{
+  "users": [
+    {
+      "uid": "mgr_001",
+      "name": "Eleanor Sterling",
+      "email": "manager@callflow.internal",
+      "password": "ManagerPass2026!",
+      "role": "manager",
+      "createdAt": "2026-09-29T10:11:15.016Z"
+    },
+    {
+      "uid": "agt_001",
+      "name": "Sarah Jenkins",
+      "email": "sarah.agent@callflow.internal",
+      "password": "AgentPass2026!",
+      "role": "agent",
+      "createdAt": "2026-09-29T10:11:15.016Z"
+    },
+    {
+      "uid": "agt_002",
+      "name": "David Miller",
+      "email": "david.agent@callflow.internal",
+      "password": "AgentPass2026!",
+      "role": "agent",
+      "createdAt": "2026-09-29T10:11:15.016Z"
+    },
+    {
+      "uid": "usr_1790676685230_5fcty",
+      "name": "Verification Agent",
+      "email": "verification.agent@callflow.internal",
+      "password": "AgentPass2026!",
+      "role": "agent",
+      "createdAt": "2026-09-29T10:11:25.230Z"
+    }
+  ],
+  "leads": [
+    {
+      "id": "lead_test_001",
+      "datasetId": "ds_001",
+      "datasetName": "Production Tech Outbound",
+      "fullName": "Jane Doe",
+      "phoneNumber": "+1 (555) 345-6789",
+      "company": "Acme Corp",
+      "status": "in_progress",
+      "createdAt": "2026-09-29T10:11:25.232Z",
+      "claimedByUid": "agt_001",
+      "claimedByName": "Sarah Jenkins",
+      "claimedAt": "2026-09-29T10:11:25.242Z"
+    }
+  ]
+}

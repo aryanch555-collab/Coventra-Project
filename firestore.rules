@@ -1,0 +1,60 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    // Role check: Only administrator email or verified manager role document
+    function isManager() {
+      return isAuthenticated() && (
+        request.auth.token.email == 'coventraglobal@gmail.com' ||
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'manager')
+      );
+    }
+
+    // User accounts & roles:
+    // Strictly closed to unauthenticated users.
+    // Roles can only be created or modified by managers.
+    // The primary admin (coventraglobal@gmail.com) can bootstrap their initial manager record.
+    match /users/{userId} {
+      allow read: if isAuthenticated();
+      allow create: if isManager() || (
+        isAuthenticated() && 
+        request.auth.uid == userId && 
+        request.auth.token.email == 'coventraglobal@gmail.com' && 
+        request.resource.data.role == 'manager'
+      );
+      allow update, delete: if isManager();
+    }
+
+    // Datasets: Managers only. Strictly closed to unauthenticated users and agents.
+    match /datasets/{datasetId} {
+      allow read, write: if isManager();
+    }
+
+    // Leads:
+    // Strictly closed to unauthenticated users.
+    // Managers have full access (create, read all, delete, export).
+    // AGENTS ARE STRICTLY DENIED ALL DIRECT READS AND LIST QUERIES ON /leads!
+    // They must receive their single assigned record exclusively via the server-side action.
+    match /leads/{leadId} {
+      allow read: if isManager();
+      allow create, delete: if isManager();
+      allow update: if isManager();
+    }
+
+    // Call logs / audit:
+    // Strictly closed to unauthenticated users.
+    // Managers can read all logs. Agents can only write their own completed call log.
+    match /callLogs/{logId} {
+      allow read: if isManager();
+      allow create: if isAuthenticated() && request.resource.data.agentUid == request.auth.uid;
+      allow update, delete: if isManager();
+    }
+  }
+}
+
+
+

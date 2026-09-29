@@ -1,0 +1,6 @@
+{
+  "name": "CallFlow - Cold Calling Portal",
+  "description": "Role-based private cold calling portal with single-record agent workflow, real-time supervisor analytics, and CSV dataset management.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

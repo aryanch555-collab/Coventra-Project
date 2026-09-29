@@ -10,6 +10,8 @@ interface AuthContextType {
   loading: boolean;
   signIn: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
   provisionUserAccount: (name: string, email: string, password: string, assignedRole: UserRole) => Promise<{ success: boolean; error?: string }>;
+  removeUser: (uid: string) => Promise<{ success: boolean; error?: string; message?: string }>;
+  requestPasswordReset: (email: string) => Promise<{ success: boolean; message?: string; error?: string }>;
   signOut: () => Promise<void>;
   fetchManagedUsers: () => Promise<UserProfile[]>;
 }
@@ -97,8 +99,25 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  // Password reset request
+  const requestPasswordReset = async (email: string): Promise<{ success: boolean; message?: string; error?: string }> => {
+    try {
+      const res = await fetch('/api/auth/reset-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: email.trim() })
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        return { success: false, error: data.error || 'Failed to submit reset request.' };
+      }
+      return { success: true, message: data.message };
+    } catch (err: unknown) {
+      return { success: false, error: err instanceof Error ? err.message : 'Network error.' };
+    }
+  };
+
   // Server-side Action: Manager provisions new account securely
-  // Verifies caller is manager; caller remains signed in without session disruption!
   const provisionUserAccount = async (
     name: string, 
     email: string, 
@@ -106,7 +125,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     assignedRole: UserRole
   ): Promise<{ success: boolean; error?: string }> => {
     if (!token || profile?.role !== 'manager') {
-      return { success: false, error: 'Unauthorized: Only managers can provision user accounts.' };
+      return { success: false, error: 'Unauthorized: Only managers can add user accounts.' };
     }
 
     try {
@@ -126,7 +145,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       const data = await res.json();
       if (!res.ok || !data.success) {
-        return { success: false, error: data.error || 'Failed to provision account.' };
+        return { success: false, error: data.error || 'Failed to add user account.' };
       }
 
       return { success: true };
@@ -134,7 +153,36 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       console.error('Provisioning error:', err);
       return {
         success: false,
-        error: err instanceof Error ? err.message : 'Network error provisioning account.'
+        error: err instanceof Error ? err.message : 'Network error adding account.'
+      };
+    }
+  };
+
+  // Server-side Action: Manager removes user account
+  const removeUser = async (uid: string): Promise<{ success: boolean; error?: string; message?: string }> => {
+    if (!token || profile?.role !== 'manager') {
+      return { success: false, error: 'Unauthorized: Only managers can remove accounts.' };
+    }
+
+    try {
+      const res = await fetch(`/api/manager/users/${uid}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        return { success: false, error: data.error || 'Failed to remove user account.' };
+      }
+
+      return { success: true, message: data.message };
+    } catch (err: unknown) {
+      console.error('Remove user error:', err);
+      return {
+        success: false,
+        error: err instanceof Error ? err.message : 'Network error removing account.'
       };
     }
   };
@@ -185,6 +233,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         loading,
         signIn,
         provisionUserAccount,
+        removeUser,
+        requestPasswordReset,
         signOut,
         fetchManagedUsers
       }}

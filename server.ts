@@ -75,7 +75,7 @@ function loadDb(): DatabaseState {
     users: [
       {
         uid: 'mgr_001',
-        name: 'Eleanor Sterling',
+        name: 'Manager',
         email: 'manager@callflow.internal',
         password: 'ManagerPass2026!',
         role: 'manager',
@@ -83,17 +83,17 @@ function loadDb(): DatabaseState {
       },
       {
         uid: 'agt_001',
-        name: 'Sarah Jenkins',
-        email: 'sarah.agent@callflow.internal',
-        password: 'AgentPass2026!',
+        name: 'Mohammad Baqir',
+        email: 'mohammad.baqir@callflow.internal',
+        password: 'BaqirPass2026!',
         role: 'agent',
         createdAt: new Date().toISOString()
       },
       {
         uid: 'agt_002',
-        name: 'David Miller',
-        email: 'david.agent@callflow.internal',
-        password: 'AgentPass2026!',
+        name: 'Malik Hammad Haider',
+        email: 'malik.hammad@callflow.internal',
+        password: 'MalikPass2026!',
         role: 'agent',
         createdAt: new Date().toISOString()
       }
@@ -164,6 +164,29 @@ app.post('/api/auth/signin', (req: Request, res: Response) => {
   });
 });
 
+// Password reset request endpoint
+app.post('/api/auth/reset-password', (req: Request, res: Response) => {
+  const { email } = req.body;
+  if (!email) {
+    return res.status(400).json({ success: false, error: 'Email is required.' });
+  }
+
+  const cleanEmail = String(email).trim().toLowerCase();
+  const user = dbState.users.find(u => u.email.toLowerCase() === cleanEmail);
+
+  if (!user) {
+    return res.json({
+      success: true,
+      message: 'If an account exists with this email address, password reset instructions have been forwarded to your manager.'
+    });
+  }
+
+  return res.json({
+    success: true,
+    message: `Password reset request submitted for ${user.name}. Please contact your system manager to set a new password.`
+  });
+});
+
 // 2. Server-side Action: Manager provisions account (Verifies caller is manager)
 app.post('/api/manager/provision-account', (req: Request, res: Response) => {
   const caller = getAuthUser(req);
@@ -228,6 +251,50 @@ app.get('/api/manager/users', (req: Request, res: Response) => {
 
   return res.json({ success: true, users: sanitized });
 });
+
+// Manager: Remove user account (releases active lead if agent, prevents removing last manager)
+app.delete('/api/manager/users/:uid', (req: Request, res: Response) => {
+  const caller = getAuthUser(req);
+  if (!caller || caller.role !== 'manager') {
+    return res.status(403).json({ success: false, error: 'Unauthorized: Only managers can remove accounts.' });
+  }
+
+  const { uid } = req.params;
+  const targetUser = dbState.users.find(u => u.uid === uid);
+  if (!targetUser) {
+    return res.status(404).json({ success: false, error: 'User account not found.' });
+  }
+
+  // Prevent removal of the last manager
+  if (targetUser.role === 'manager') {
+    const managerCount = dbState.users.filter(u => u.role === 'manager').length;
+    if (managerCount <= 1) {
+      return res.status(400).json({ success: false, error: 'Cannot remove the last manager account.' });
+    }
+  }
+
+  // When an agent is removed, release their active lead back to the queue
+  let releasedLeadsCount = 0;
+  dbState.leads.forEach(l => {
+    if (l.claimedByUid === uid && l.status === 'in_progress') {
+      l.status = 'unassigned';
+      delete l.claimedByUid;
+      delete l.claimedByName;
+      delete l.claimedAt;
+      releasedLeadsCount++;
+    }
+  });
+
+  // Remove the user from store
+  dbState.users = dbState.users.filter(u => u.uid !== uid);
+  saveDb(dbState);
+
+  return res.json({
+    success: true,
+    message: `Account "${targetUser.name}" removed.` + (releasedLeadsCount > 0 ? ` Active lead released back to the queue.` : '')
+  });
+});
+
 
 // 4. Server-side Action: Agent requests next lead (ATOMIC ASSIGNMENT of ONE record)
 // Verifies caller is an agent, returns ONLY that single lead.
@@ -358,6 +425,19 @@ app.post('/api/manager/sync-leads', (req: Request, res: Response) => {
   saveDb(dbState);
   return res.json({ success: true, count: dbState.leads.length });
 });
+
+// Clear test leads
+app.post('/api/manager/clear-test-data', (req: Request, res: Response) => {
+  const caller = getAuthUser(req);
+  if (!caller || caller.role !== 'manager') {
+    return res.status(403).json({ success: false, error: 'Unauthorized: Manager access required.' });
+  }
+
+  dbState.leads = dbState.leads.filter(l => l.datasetType !== 'sample_test');
+  saveDb(dbState);
+  return res.json({ success: true, count: dbState.leads.length });
+});
+
 
 // 7. Manager: Query all leads
 app.get('/api/manager/leads', (req: Request, res: Response) => {
